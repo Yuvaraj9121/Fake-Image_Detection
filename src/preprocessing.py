@@ -3,6 +3,7 @@ from typing import BinaryIO
 
 import numpy as np
 from PIL import Image
+import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 from .config import (
@@ -10,6 +11,7 @@ from .config import (
     CLASS_NAMES,
     IMAGE_SIZE,
     RANDOM_SEED,
+    TEST_DIR,
     TRAIN_DIR,
     VALIDATION_SPLIT,
 )
@@ -17,19 +19,22 @@ from .config import (
 
 def preprocess_image(image_path: str | Path | BinaryIO) -> np.ndarray:
     with Image.open(image_path) as image:
-        rgb_image = image.convert("RGB").resize(IMAGE_SIZE)
-        array = np.asarray(rgb_image, dtype=np.float32) / 255.0
+        rgb_image = image.convert("RGB").resize(IMAGE_SIZE, Image.Resampling.LANCZOS)
+        array = np.asarray(rgb_image, dtype=np.float32)
     return array
+
+
+def _random_contrast(image: np.ndarray) -> np.ndarray:
+    tensor = tf.convert_to_tensor(image, dtype=tf.float32)
+    return tf.image.random_contrast(tensor, lower=0.9, upper=1.1, seed=RANDOM_SEED).numpy()
 
 
 def build_train_generator(batch_size: int = BATCH_SIZE):
     generator = ImageDataGenerator(
-        rescale=1.0 / 255.0,
-        rotation_range=10.0,
-        width_shift_range=0.1,
-        height_shift_range=0.1,
-        zoom_range=0.2,
+        rotation_range=8.0,
+        zoom_range=0.08,
         horizontal_flip=True,
+        preprocessing_function=_random_contrast,
         validation_split=VALIDATION_SPLIT,
     )
     return generator.flow_from_directory(
@@ -46,7 +51,6 @@ def build_train_generator(batch_size: int = BATCH_SIZE):
 
 def build_validation_generator(batch_size: int = BATCH_SIZE):
     generator = ImageDataGenerator(
-        rescale=1.0 / 255.0,
         validation_split=VALIDATION_SPLIT,
     )
     return generator.flow_from_directory(
@@ -62,9 +66,9 @@ def build_validation_generator(batch_size: int = BATCH_SIZE):
 
 
 def build_test_generator(batch_size: int = BATCH_SIZE):
-    generator = ImageDataGenerator(rescale=1.0 / 255.0)
+    generator = ImageDataGenerator()
     return generator.flow_from_directory(
-        TRAIN_DIR.parent / "test",
+        TEST_DIR,
         target_size=IMAGE_SIZE,
         batch_size=batch_size,
         class_mode="binary",

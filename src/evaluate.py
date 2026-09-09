@@ -15,7 +15,7 @@ from sklearn.metrics import (
 )
 from tensorflow.keras.models import load_model
 
-from .config import BEST_MODEL_PATH, RESULTS_DIR
+from .config import BEST_MODEL_PATH, DECISION_THRESHOLD, RESULTS_DIR
 from .preprocessing import build_test_generator
 
 
@@ -26,12 +26,23 @@ def evaluate(model_path: str | Path, batch_size: int) -> dict:
     model = load_model(model_path, compile=False)
     probabilities = model.predict(generator, verbose=0).ravel()
     y_true = generator.classes
-    y_pred = (probabilities >= 0.5).astype(int)
+    y_pred = (probabilities >= DECISION_THRESHOLD).astype(int)
     matrix = confusion_matrix(y_true, y_pred, labels=[0, 1])
     true_negative, false_positive, false_negative, true_positive = matrix.ravel()
     specificity = true_negative / (true_negative + false_positive) if true_negative + false_positive else 0.0
+    report = classification_report(
+        y_true,
+        y_pred,
+        labels=[0, 1],
+        target_names=["fake", "real"],
+        output_dict=True,
+        zero_division=0,
+    )
     metrics = {
+        "threshold": DECISION_THRESHOLD,
         "samples": int(len(y_true)),
+        "test_fake_count": int(np.sum(y_true == 0)),
+        "test_real_count": int(np.sum(y_true == 1)),
         "accuracy": float(accuracy_score(y_true, y_pred)),
         "precision": float(precision_score(y_true, y_pred, zero_division=0)),
         "recall": float(recall_score(y_true, y_pred, zero_division=0)),
@@ -39,11 +50,21 @@ def evaluate(model_path: str | Path, batch_size: int) -> dict:
         "specificity": float(specificity),
         "roc_auc": float(roc_auc_score(y_true, probabilities)),
         "confusion_matrix": matrix.tolist(),
-        "classification_report": classification_report(
-            y_true, y_pred, labels=[0, 1], target_names=["fake", "real"], output_dict=True, zero_division=0
-        ),
+        "per_class": {"fake": report["fake"], "real": report["real"]},
+        "macro_avg": report["macro avg"],
+        "weighted_avg": report["weighted avg"],
     }
     (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
+    (output_dir / "classification_report.txt").write_text(
+        classification_report(
+            y_true,
+            y_pred,
+            labels=[0, 1],
+            target_names=["fake", "real"],
+            zero_division=0,
+        ),
+        encoding="utf-8",
+    )
     figure, axis = plt.subplots(figsize=(5, 4))
     axis.imshow(matrix, cmap="Blues")
     axis.set_xlabel("Predicted label")

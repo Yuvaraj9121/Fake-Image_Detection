@@ -1,23 +1,27 @@
-from tensorflow.keras import Sequential
-from tensorflow.keras.layers import Conv2D, Dense, Flatten, MaxPooling2D
+from tensorflow.keras import Model
+from tensorflow.keras.applications import EfficientNetB0
+from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling2D, Input
+from tensorflow.keras.optimizers import Adam
 
 from .config import INPUT_SHAPE
 
 
-def build_model():
-    model = Sequential(
-        [
-            Conv2D(32, kernel_size=(3, 3), activation="relu", input_shape=INPUT_SHAPE),
-            MaxPooling2D(pool_size=(2, 2)),
-            Conv2D(64, kernel_size=(3, 3), activation="relu"),
-            MaxPooling2D(pool_size=(2, 2)),
-            Conv2D(128, kernel_size=(3, 3), activation="relu"),
-            MaxPooling2D(pool_size=(2, 2)),
-            Flatten(),
-            Dense(256, activation="relu"),
-            Dense(1, activation="sigmoid"),
-        ],
-        name="real_fake_face_cnn",
+def build_model(learning_rate: float = 1e-3) -> Model:
+    inputs = Input(shape=INPUT_SHAPE, name="image")
+    backbone = EfficientNetB0(
+        include_top=False,
+        weights="imagenet",
+        input_shape=INPUT_SHAPE,
     )
-    model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
+    backbone.trainable = False
+    features = backbone(inputs, training=False)
+    features = GlobalAveragePooling2D(name="global_average_pooling")(features)
+    features = Dropout(0.3, name="dropout")(features)
+    outputs = Dense(1, activation="sigmoid", name="probability_real")(features)
+    model = Model(inputs, outputs, name="efficientnetb0_real_fake_classifier")
+    model.compile(
+        optimizer=Adam(learning_rate=learning_rate),
+        loss="binary_crossentropy",
+        metrics=["accuracy"],
+    )
     return model

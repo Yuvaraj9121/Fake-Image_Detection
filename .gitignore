@@ -128,4 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 model_checkpoint.hdf5
-models/*.keras
+models/*
+!models/
+!models/best_model.keras
