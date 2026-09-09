@@ -2,7 +2,6 @@ import argparse
 from pathlib import Path
 
 import numpy as np
-from tensorflow.keras.models import load_model
 
 from .config import BEST_MODEL_PATH, CLASS_NAMES, DECISION_THRESHOLD
 from .preprocessing import preprocess_image
@@ -13,6 +12,8 @@ def load_detection_model(model_path: str | Path | None = None):
     if not path.exists():
         raise FileNotFoundError(f"Detection model was not found: {path}")
     try:
+        from tensorflow.keras.models import load_model
+
         return load_model(path, compile=False), path
     except (OSError, ValueError, RuntimeError) as error:
         raise RuntimeError(f"Could not load detection model at {path}: {error}") from error

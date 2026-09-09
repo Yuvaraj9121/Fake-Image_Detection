@@ -3,8 +3,6 @@ from typing import BinaryIO
 
 import numpy as np
 from PIL import Image
-import tensorflow as tf
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 from .config import (
     BATCH_SIZE,
@@ -25,11 +23,15 @@ def preprocess_image(image_path: str | Path | BinaryIO) -> np.ndarray:
 
 
 def _random_contrast(image: np.ndarray) -> np.ndarray:
+    import tensorflow as tf
+
     tensor = tf.convert_to_tensor(image, dtype=tf.float32)
     return tf.image.random_contrast(tensor, lower=0.9, upper=1.1, seed=RANDOM_SEED).numpy()
 
 
 def build_train_generator(batch_size: int = BATCH_SIZE):
+    from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
     generator = ImageDataGenerator(
         rotation_range=8.0,
         zoom_range=0.08,
@@ -50,6 +52,8 @@ def build_train_generator(batch_size: int = BATCH_SIZE):
 
 
 def build_validation_generator(batch_size: int = BATCH_SIZE):
+    from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
     generator = ImageDataGenerator(
         validation_split=VALIDATION_SPLIT,
     )
@@ -66,6 +70,8 @@ def build_validation_generator(batch_size: int = BATCH_SIZE):
 
 
 def build_test_generator(batch_size: int = BATCH_SIZE):
+    from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
     generator = ImageDataGenerator()
     return generator.flow_from_directory(
         TEST_DIR,
