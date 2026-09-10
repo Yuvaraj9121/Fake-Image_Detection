@@ -4,6 +4,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import tensorflow as tf
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -15,16 +16,32 @@ from sklearn.metrics import (
 )
 from tensorflow.keras.models import load_model
 
-from .config import BEST_MODEL_PATH, DECISION_THRESHOLD, RESULTS_DIR
+from .config import DECISION_THRESHOLD, RESULTS_DIR
 from .preprocessing import build_test_generator
+from .predict import SAVED_MODEL_PATH, load_detection_model
+
+
+def _predict(model_path: Path, generator) -> np.ndarray:
+    if model_path.is_dir():
+        _, signature, _ = load_detection_model(model_path)
+        probabilities: list[float] = []
+        for batch_index in range(len(generator)):
+            images, _ = generator[batch_index]
+            outputs = signature(image=tf.convert_to_tensor(images, dtype=tf.float32))
+            probabilities.extend(
+                np.asarray(outputs["probability_real"]).reshape(-1).tolist()
+            )
+        return np.asarray(probabilities, dtype=np.float32)
+
+    model = tf.keras.models.load_model(model_path, compile=False)
+    return model.predict(generator, verbose=0).ravel()
 
 
 def evaluate(model_path: str | Path, batch_size: int) -> dict:
     output_dir = RESULTS_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
     generator = build_test_generator(batch_size)
-    model = load_model(model_path, compile=False)
-    probabilities = model.predict(generator, verbose=0).ravel()
+    probabilities = _predict(Path(model_path), generator)
     y_true = generator.classes
     y_pred = (probabilities >= DECISION_THRESHOLD).astype(int)
     matrix = confusion_matrix(y_true, y_pred, labels=[0, 1])
@@ -82,7 +99,7 @@ def evaluate(model_path: str | Path, batch_size: int) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate the classifier on the untouched test set.")
-    parser.add_argument("--model", type=Path, default=BEST_MODEL_PATH)
+    parser.add_argument("--model", type=Path, default=SAVED_MODEL_PATH)
     parser.add_argument("--batch-size", type=int, default=32)
     args = parser.parse_args()
     print(json.dumps(evaluate(args.model, args.batch_size), indent=2))
